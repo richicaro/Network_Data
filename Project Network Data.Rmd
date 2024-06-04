@@ -292,7 +292,7 @@ legend(legend=paste("Cor:", round(cor_degree_eigenvector, 2)),
 ```
 Eigenvector centrality considers not only the number of connections of a node (like degree centrality), but also the importance of connected nodes. Consequently, a node with high degree centrality will often also have high eigenvector centrality, especially in graphs where important nodes tend to be connected to other important nodes. This leads to a significant positive correlation between these two measures. On the other hand, betweenness centrality is not directly related to a node's number of links, but rather to the node's strategic position in the graph. A node may have high degree centrality but low betweenness centrality if it is not located along many shorter paths between other nodes. Conversely, a node with low degree centrality might have high betweenness centrality if it is critical for connecting different parts of the graph.
 
-
+modifica 
 
 
 
