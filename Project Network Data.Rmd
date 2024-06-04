@@ -1,0 +1,308 @@
+---
+title: "Untitled"
+author: "Riccardo Carotenuto"
+date: "2024-05-30"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+library(tidyverse)
+library(igraph)
+library(igraphdata)
+library(sand)
+```
+
+#This is a drug side-effect association network that contains information on side effects caused by drugs that are on the U.S. market. Nodes represent drugs and side effects, and edges indicate recorded adverse drug reactions.
+
+
+```{r}
+data=read.csv("/Users/riccardocarotenuto/Desktop/detailed_list_of_contacts_Hospital.dat_",sep="")
+```
+
+```{r}
+sub.data=data[,c(2,4)]
+sub.data1=data[,c(3,5)]
+names(sub.data1) <- c("X1157", "MED")
+data1<- rbind(sub.data, sub.data1)
+data1 <-data1[!duplicated(data1$X1157), ] #data for the vertexes
+```
+
+```{r}
+Data=data[,c(2,3)] #data for the edges
+```
+
+```{r}
+B<-as.data.frame(table(Data)) # Create an edge weight column named "Freq"
+B1<-subset(B,Freq>0)
+```
+
+```{r}
+Class<-graph_from_data_frame(B1, directed = FALSE, vertices = data1)
+```
+
+An undirected graph $G=(V,E)$ is a set of vertices $V$ and a set of edges $E$ where each edge connects two vertices without any direction. The edges represent a bidirectional relationship between the vertices.
+
+```{r}
+set.seed(123)
+ng=vcount(Class)
+n <- floor(ng / 1.5)
+v_star <- sample.int(ng, n)
+nmc <- 400
+est_mc <- map_df(1:nmc, function (mc) {
+ v_star <- sample(V(Class), n)
+ data.frame(mc = mc, method = c("snowball", "induced"),
+ estimate = c(mean(degree(Class)[v_star]), mean(degree(induced_subgraph(Class, v_star)))))
+})
+ggplot(est_mc, aes(x = estimate, fill = method)) +
+ geom_histogram(bins = 100) + geom_vline(xintercept = mean(degree(Class)))
+```
+
+```{r}
+snowball.sampling = function(G, samn){
+    if (vcount(G) < samn){
+    # exit if the population number is less than the sample size
+    return("Population size is not enough for snowball sampling")
+  }
+
+  ind = c()
+  V(G)$name = c(1:length(V(G)))
+  starter = sample(1:length(V(G)),1)
+  current = c()
+  current[1] = V(G)$name[starter]
+  count = 1
+  ind[1] = current[1]
+  while (count< samn){
+    nnode = length(current) # the number of subjects in the current stage
+    for (i in 1:nnode){
+      ngh = neighbors(G, current[i]) # vertex index
+      ind = c(ind, V(G)$name[ngh])
+      ind = unique(ind)
+    }
+    tmp_sample = ind[(count+1):length(ind)]
+
+    if (samn < length(ind)){ # if we reach more than the targeted sample size
+      need = samn - count # number of subjects needed
+      tmp_sample = sample(tmp_sample, need)
+      ind[(count+1):samn] = tmp_sample
+      ind = ind[-c((samn+1):length(ind))]
+    }
+    current = tmp_sample
+    count = length(ind)
+  }
+
+  if(count == samn){
+    subG = induced.subgraph(G, ind) # creates a subgraph of a graph, containing only the specified vertices and all the edges among them.
+    return(list(subG = subG, ind = ind))
+  }else{
+    return("somthing goes wrong.")
+  }
+}
+```
+
+#SNOWBALL SAMPLING AND INDUCED SAMPLING
+Both can be use to get a subgraf of the original for computational reasons . 
+Snowball: we select randomly a node. Then,at each iteration we select the neighbors of the previous nodes and linking the edges we get an induced subgraph. We stop when a stopping criteria is reached. For instance when we reached a certen number of nodes. Induced: We select randomly  two or more nodes in a network and from those we create an induced subgraph. To choose what sampling provides me the best reliable techninque I made n iteration to get n samplings with both methods. Then, for both samplings at each iteration I computed the average degree. At the end I plotted the histogram of those averages inserting a vertical bar which represents the average degree of the starting graph with no sampling. From the plot I see that the averages of the induced sampling is not centered with respect the the original average, while the histogram of the averages of the snoball method is centered around that vertical line. Hence, to make a sample of my nodes I opted to use the snowball method.
+
+```{r}
+set.seed(123)
+Class1=snowball.sampling(Class,50)
+```
+
+```{r}
+Class.1 <- Class1$subG
+```
+
+```{r}
+E(Class.1)$weight<-E(Class.1)$Freq # Assigning edge attribute to each edge
+```
+
+```{r}
+#connection
+is_connected(Class.1)
+is_weighted(Class.1)
+diameter(Class.1)
+```
+
+The graph is said to be connected if every vertex is reachable from every other
+vertex.
+The diamter of a network is the length of the longest shortest path between any two vertices in the graph. Given that there are 50 nodes, a diameter of 7 might imply that the network has a relatively well-connected structure,
+
+#degree distribution
+The degree distribution of a graph describes the frequency or probability distribution of the degrees of vertices in the graph. The degree of a vertex is the number of edges incident to it. Since you have a weighted graph where the values represent the strength of connections between individuals, the degree distribution will consider these weighted connections. You can calculate the degree of a vertex by summing up the weights of all edges incident to that vertex.
+
+```{r}
+fd=degree.distribution(Class.1)
+d=seq_along(fd)
+plot(d-1,fd,type='h')
+```
+
+#DENSITY OF THE GRAPH VS DENSITY OF THE SUBGRAPGHS FOR THE FOUR CLASSES
+
+The density of a network is the ratio of the number of edges in the graph to the maximum possible number of edges. In an undirected grapgh this is the ratio between $\frac{n(n-1)}{2}$. It quantifies how "dense" the connections are within the graph.A graph with high density has many edges relative to the total possible, indicating strong connectivity, while a graph with low density has fewer edges relative to the total possible, indicating weaker connectivity. 
+
+```{r}
+density_global=edge_density(Class.1) # Global density
+A1<-round(edge_density(induced_subgraph(Class.1, V(Class.1)[MED=="NUR"], impl=c("auto"))),2)
+A2<-round(edge_density(induced_subgraph(Class.1, V(Class.1)[MED=="MED"], impl=c("auto"))),2)
+A3<-round(edge_density(induced_subgraph(Class.1, V(Class.1)[MED=="PAT"], impl=c("auto"))),2)
+A4<-round(edge_density(induced_subgraph(Class.1, V(Class.1)[MED=="ADM"], impl=c("auto"))),2)# Subgraphing into each 
+```
+
+```{r}
+library(knitr)
+density_comparison <- data.frame(Global = density_global,
+  NUR =A1,
+  MED =A2,
+  PAT =A3,
+  ADM =A4
+)
+kable(density_comparison, format = "html", row.names = FALSE)
+```
+
+The general connectivity is 0.56 indicating a global strong connectact among the classess. However, analysing the connection within each class, we may conclude that the connection within the classes of nurses and doctors is higher that the global connection. Hence, we can say that both nurses and doctors have much more contact inside their class comparing with the global contact.
+This indicates that within their respective classes, nurses tend to interact more with other nurses, and doctors tend to interact more with other doctors, creating strong intra-class connections.
+
+#adjacency matrix
+```{r}
+#adjacency matrix in an undirected weighted graph
+Class.1[c(1:10),c(1:10)]
+```
+
+It is a symmetric matrix where on the rows and columns are reported the ID's of the person subjected to the analysis. In ech cell we have the connection between each vertex (ID). In an undirected grapgh with no weigth on the edge we would have 1 if there is a connection among the adges while 0 if there is not a connection. However, in the analysis, the edges are weigthed. Hence, if there is a connection among two ID's we have a value that represents the strength/contact number of the connectivity among the selected nodes. Moreover, the values on the diagonal are equal to zero since each edge is not linked to itself and our network is undirected.
+
+#CENTRALITY: IMPORTANCE OF THE NODES
+
+#Eigenvector centrality
+It's based on the concept that a node is important if it is connected to other important nodes.
+Let $A = (a_{i,j})$ be the adjacency matrix of a graph. The eigenvector centrality $x_{i}$ of node $i$ is given by: $$x_i = \frac{1}{\lambda} \sum_k a_{k,i} \, x_k$$ where $\lambda \neq 0$ is usually the largest eigenvalue in absolute value of matrix $A$.. In matrix form we have: $$\lambda x = x A$$.
+By virtue of Perron-Frobenius theorem, this choice guarantees the following desirable property: if matrix $A$ is irreducible, or equivalently if the graph is (strongly) connected, then the eigenvector solution $x$ is both unique and positive.
+
+```{r}
+class1_eig <- evcent(Class.1)$vector
+V(Class.1)$Eigen<-class1_eig
+V(Class.1)$Eigen
+which.max(class1_eig)
+V(Class)[28] #returns the ID fo the person and the index of max value of the eigenvector
+```
+
+#BETWEENNESS CENTRALITY
+Betweenness centrality measures the extent to which a vertex lies on paths between other vertices. Vertices with high betweenness may have considerable influence within a network by virtue of their control over information passing between others. They are also the ones whose removal from the network will most disrupt communications between other vertices because they lie on the largest number of paths taken by messages.
+Mathematically, let $n_{s,t}^{i}$ be the number of paths from $s$ to $t$ that pass through $i$ and let $n_{s,t}$ be the total number of paths from $s$ to $t$.Then the betweenness centrality of vertex $i$ is:
+
+$\displaystyle{b_i = \sum_{s, t} w_{s,t}^{i} = \sum_{s, t} \frac{n_{s,t}^{i}}{n_{s,t}}}$
+
+where by convention the ratio $w_{s,t}^{i} = 0$ if $n_{s,t} = 0$.
+Calculating betweenness centrality for all nodes in a graph involves computing the (unweighted) shortest paths between all pairs of nodes in the graph. 
+
+```{r}
+#betwenness centrality
+class1_bw<-betweenness(Class.1, directed = FALSE)
+V(Class.1)$betweenness<-class1_bw
+V(Class.1)$betweenness
+which.max(class1_bw)
+V(Class)[which.max(class1_bw)]
+```
+
+#FRUCHTERMAN REINGOLD
+It is an example of a force-directed algorithm, which uses an analogy of physical springs as edges that attract connected vertices toward each other and a competing repulsive force that pushes all vertices away from one another, whether they are connected or not [5, 7]. It typically results in edges that are relatively similar in length, though the length of edges has no specific meaning in most network visualizations. The algorithm uses an iterative process to adjust the placement of the vertices in order to minimize the “energy” of the system. Because it is an iterative layout, it runs many times, each time incrementally changing the position of each vertex based on the prior position.
+
+```{r, fig.width=8, fig.height=6}
+set.seed(1234)
+library(RColorBrewer)
+pal<-brewer.pal(length(unique(V(Class.1)$MED)), "Set3")
+plot(Class.1, 
+     edge.color = 'black',
+     vertex.label.cex = 0.5,
+     vertex.color = pal[as.numeric(as.factor(vertex_attr(Class.1, "MED")))],
+     vertex.size = sqrt(class1_eig) * 12.5,
+     edge.width = sqrt(E(Class.1)$weight / 800),  # Correzione qui
+     layout = layout.fruchterman.reingold)
+#legend("topright", legend = levels(as.factor(vertex_attr(Class1[[1]], "MED"))),
+       #fill = pal, title = "MED")
+legend("topright", legend = levels(as.factor(vertex_attr(Class.1, "MED"))),
+       fill = pal, title = "MED", cex=3, bty="n", x.intersp=0.8, y.intersp=1)
+```
+
+```{r, fig.width=8, fig.height=6}
+set.seed(123)
+library(RColorBrewer)
+pal<-brewer.pal(length(unique(V(Class.1)$MED)), "Set3")
+plot(Class.1, 
+     edge.color = 'black',
+     vertex.label.cex = 0.5,
+     vertex.color = pal[as.numeric(as.factor(vertex_attr(Class.1, "MED")))],
+     vertex.size = sqrt(class1_bw) * 1.1,
+     edge.width = sqrt(E(Class.1)$weight / 800),  
+     layout = layout.fruchterman.reingold)
+#legend("topright", legend = levels(as.factor(vertex_attr(Class1[[1]], "MED"))),
+       #fill = pal, title = "MED")
+legend("topright", legend = levels(as.factor(vertex_attr(Class.1, "MED"))),
+       fill = pal, title = "MED", cex=3, bty="n", x.intersp=0.8, y.intersp=1)
+```
+In both graphs We have highlighted the nodes according to their centrality importance. In the first we used the eigenvector centrality while in the second we implemented the betweenness centrality. We may conclude that in both the cases the most central nodes are the ones related to the nurses category. Moreover, using eigenvector method the most central node is related to the person with ID equal to 1115 while in the other case ID more central is linked to the id equal to 1164
+
+#CORRELATION BETWEEN DEGREE VS BETWENNESS CENTRALITY AND DEGREE VS EIGEN CENTRALITY
+
+#Degree centrality
+
+We sum all the edges each vertex has. In our case, we sum the weight of all the edges linked to a vertex or node.
+Freeman (1978) asserted that the degree of focal node is the number of adjacencies in a network, i.e. the number of nodes that the focal node is connected to. This measure can be formalized
+as:
+$$
+k_i=C_D(i)=\sum_j^N x_{ij}
+$$
+where $i$ is the focal node, $j$ represents all other nodes, $N$ is the total number of nodes, and $x$ is the adjacency matrix, in which the cell $x_{ij}$ is defined as 1 if node i is connected to node $j$, and 0 otherwise. However, in our case, we have an undirected and weigthed graph. Hence, the measure of the degree centrality is equal to:
+
+$$
+k_i=C_D^W(i)=\sum_j^N W_{ij}
+$$
+
+Here, $W_{ij}$ is the weigthed adjacency matrix, in which $W_{IJ}$ is greater than 0 if the node $i$ is connected to node $j$, and the value represents the weight of the tie.
+
+```{r}
+#1. Degree centrality
+Class_deg<-degree(Class.1,mode=c("All"))
+V(Class.1)$degree<-Class_deg
+V(Class.1)$degree
+which.max(Class_deg)
+```
+
+
+```{r}
+degree_values <- V(Class.1)$degree
+betweenness_values <- V(Class.1)$betweenness
+eigenvector_values <- V(Class.1)$Eigen
+cor_degree_betweenness <- cor(degree_values, betweenness_values)
+cor_degree_eigenvector <- cor(degree_values, eigenvector_values)
+par(mfrow=c(1,2))
+plot(degree_values, betweenness_values,
+     xlab="Degree", ylab="Betweenness Centrality",
+     main="Degree vs Betweenness Centrality",
+     col="blue", pch=16)
+legend(x=10,y=255, legend=paste("Cor:", round(cor_degree_betweenness, 2)), col="blue", pch=16, bty="n")
+plot(degree_values, eigenvector_values,
+     xlab="Degree", ylab="Eigenvector Centrality",
+     main="Degree vs Eigenvector Centrality",
+     col="red", pch=16)
+# Aggiungere la legenda con il valore di correlazione
+legend(legend=paste("Cor:", round(cor_degree_eigenvector, 2)),
+       col="red", pch=16, bty="n",x=10,y=1)
+```
+Eigenvector centrality considers not only the number of connections of a node (like degree centrality), but also the importance of connected nodes. Consequently, a node with high degree centrality will often also have high eigenvector centrality, especially in graphs where important nodes tend to be connected to other important nodes. This leads to a significant positive correlation between these two measures. On the other hand, betweenness centrality is not directly related to a node's number of links, but rather to the node's strategic position in the graph. A node may have high degree centrality but low betweenness centrality if it is not located along many shorter paths between other nodes. Conversely, a node with low degree centrality might have high betweenness centrality if it is critical for connecting different parts of the graph.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
