@@ -1,10 +1,10 @@
 ---
-title: "Untitled"
-author: "Riccardo Carotenuto"
+title: "Social Network"
+author: "Riccardo Carotenuto and Matteo Fusi"
 date: "2024-05-30"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r,include=FALSE}
@@ -13,30 +13,17 @@ library(igraph)
 library(igraphdata)
 library(sand)
 library(RColorBrewer)
+library(ggplot2)
+library(knitr)
+library(plotly)
+library(DT)
+library(dplyr)
+
 ```
 
+Here, we analyze data on face-to-face contacts collected in an office building. Contacts are similar to other social situations,but important differences are observed in the contact network structure. Indeed, the contact network is strongly shaped by the organization of the offices in departments,which has consequences in the design of accurate agent-based models of epidemic spread. The goal, is to identify the nodes, which act as bridges in the network and have large centrality. Thus, a vaccination strategy targeting those workers, may  efficiently prevents large outbreaks.
+We implemented both betwenneess and egein centrality to search which one fits better the data.
 
-```{r}
-#data=read.csv("/Users/riccardocarotenuto/Desktop/detailed_list_of_contacts_Hospital.dat_",sep="")
-#head(data)
-```
-
-
-```{r}
-#sub.data=data[,c(2,4)]
-#sub.data1=data[,c(3,5)]
-#names(sub.data1) <- c("X1157", "MED")
-#data1<- rbind(sub.data, sub.data1)
-#data1 <-data1[!duplicated(data1$X1157), ] #data for the vertexes
-```
-
-```{r}
-#Data=data[,c(2,3)] #data for the edges
-#head(Data)
-```
-
-Here, we analyze data on face-to-face contacts collected in an office building. Contacts are similar to other social situations,but important differences are observed in the contact network structure. Indeed, the contact network is strongly shaped by the organization of the offices in departments,which has consequences in the design of accurate agent-based models of epidemic spread. The goal, is to identify the nodes which act as bridges in the network and have large centralities. We implemented both betwenneess and egein centrality to search which one fits better the data.
-Thus, a vaccination strategy targeting them, may  efficiently prevents large outbreaks. 
 In particular, this data set contains the temporal network of contacts between individuals measured in an office building in France, from June 24 to July 3, 2013. The data set comprises two files. The first one contains a tab-separated list representing the active contacts during 20-second intervals of the data collection. Each line has the form “t i j”, where i and j are the anonymous IDs of the persons in contact, and the interval during which this contact was active is [t – 20s, t] (t is expressed in seconds since the time origin taken as 0:00 on June 24, 2013).
 The second file contains a list of the form “i Di” where i is the anonymous ID of an individual and Di the name of his/her department in the workplace.
 
@@ -45,6 +32,41 @@ d=read.csv("/Users/riccardocarotenuto/Desktop/tij_InVS15.dat_",sep="")
 data=read.csv("/Users/riccardocarotenuto/Desktop/Work.place.csv",sep="")
 d=d[,c(2,3)]
 names(data)=c('id','sector')
+head(data)
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+colname <- colnames(data)[2]
+data_summary <- data %>%
+  count(!!sym(colname)) %>%
+  mutate(percentage = n / sum(n) * 100)
+
+data_summary <- data_summary %>%
+  mutate(category_label = paste(!!sym(colname), "(", round(percentage, 1), "%)", sep = ""),
+         ypos = cumsum(percentage) - 0.5 * percentage,
+         label_pos = 3)  # Aumenta label_pos per rendere le linee più lunghe
+
+# Calcolo del totale complessivo
+total_sum <- sum(data_summary$n)
+
+ggplot(data_summary, aes(x = 2, y = percentage, fill = category_label)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") +
+  xlim(0.5, 3.5) +  # Aumenta lo spazio per le linee
+  labs(fill = "Categories", x = NULL, y = NULL, title = "COMPANY DEPARTMENTS") +
+  theme_void() +
+  theme(legend.title = element_blank(), legend.position = "right") +
+ 
+  #geom_text(aes(x = label_pos + 0.1, y = ypos, label = paste0(round(percentage, 1), "%")), 
+            #hjust = 0, color = "black") + # Aggiunge il testo con la percentuale fuori dalla ciambella
+  annotate("text", x = 0.6, y = 0, label = paste0("n: ", total_sum), size = 6, fontface = "bold") + # Aggiunge il totale complessivo al centro della ciambella
+  scale_fill_brewer(palette = "Set3") # Usa una palette di colori più diversificata
+
+
 ```
 
 Here, we have computed the frequency of contacts between two workers in a given interval of time, selecting only the workers' ID's with at least one contact in the given interval.
@@ -54,9 +76,12 @@ B<-as.data.frame(table(d)) # Create an edge weight column named "Freq"
 B1<-subset(B,Freq>0)
 head(B1)
 ```
+
 ```{r}
 B1=B1[B1$X574 %in% data$id,]
 B1=B1[B1$X1362 %in% data$id,]
+names(B1)=c('ID','ID','Contacts')
+head(B1)
 ```
 
 Having fixed the data, we implemented the graph through the graph_from_data_frame() function in the igraph package. B1 is the data with the contacts among workers, directed=FALSE since the network is undirected and as vertices we used the ID'S identified with the department the worker belongs to.
@@ -69,22 +94,23 @@ Since we noticed that the data is not connected, we fixed this problem by select
 
 ```{r}
 components <- clusters(Class)
-# Identificare la componente connessa più grande
+# Identify the biggest connection
 largest_component_id <- which.max(components$csize)
 largest_component_vertices <- which(components$membership == largest_component_id)
-# Creare un sottografo con la componente connessa più grande
-largest_component <- induced_subgraph(Class, largest_component_vertices)
-# Verificare se il nuovo grafo è connesso
+
+Class.1 <- induced_subgraph(Class, largest_component_vertices)
+
 is_connected(largest_component)
 ```
 
 An undirected graph $G=(V,E)$ is a set of vertices $V$ and a set of edges $E$ where each edge connects two vertices without any direction. The edges represent a bidirectional relationship between the vertices.
 
 #SNOWBALL SAMPLING AND INDUCED SAMPLING
-Both can be use to get a subgraf of the original to reduce computational costs. 
-Snowball: we select randomly a node. Then,at each iteration we select the neighbors of the previous nodes and linking the edges we get an induced subgraph. We stop when a stopping criteria is reached. For instance when we reached a certen number of nodes. Induced: We select randomly  two or more nodes in a network and from those we create an induced subgraph. To choose what sampling provides me the best reliable techninque I made n iteration to get n samplings with both methods. Then, for both samplings at each iteration I computed the average degree. At the end I plotted the histogram of those averages inserting a vertical bar which represents the average degree of the starting graph with no sampling. From the plot I see that the averages of the induced sampling is not centered with respect the the original average, while the histogram of the averages of the snoball method is centered around that vertical line. Hence, to make a sample of my nodes I opted to use the snowball method.
 
-```{r}
+Both can be use to get a subgraf of the original to reduce computational costs. 
+Snowball: we select randomly a node. Then,at each iteration we select the neighbors of the previous nodes and linking the edges we get an induced subgraph. We stop when a stopping criteria is reached. For instance when we reached a certain number of nodes. Induced: We select randomly  two or more nodes in a network and from those we create an induced subgraph. To choose what sampling provides me the best reliable technique I made n iteration to get n sampling with both methods. Then, for both sampling at each iteration I computed the average degree. At the end I plotted the histogram of those averages inserting a vertical bar which represents the average degree of the starting graph with no sampling. From the plot I see that the averages of the induced sampling is not centered with respect the the original average, while the histogram of the averages of the snowball method is centered around that vertical line. Hence, to make a sample of my nodes I opted to use the snowball method.
+
+```{r,fig.width=8, fig.height=3,fig.align='center'}
 set.seed(123)
 ng=vcount(largest_component)
 n <- floor(ng / 1.5)
@@ -97,52 +123,12 @@ est_mc <- map_df(1:nmc, function (mc) {
               mean(degree(induced_subgraph(largest_component, v_star)))))
 })
 ggplot(est_mc, aes(x = estimate, fill = method)) +
- geom_histogram(bins = 100) + geom_vline(xintercept = mean(degree(largest_component)))
+ geom_histogram(bins = 100) + geom_vline(xintercept = mean(degree(largest_component)))+
+  theme(legend.title = element_text(size = 50),  # Increase legend title size
+        legend.text = element_text(size = 40))
 ```
 
 Hence, we implemented the snowball.sampling() function to sample almost 85% of the nodes in our data.
-
-```{r}
-snowball.sampling = function(G, samn){
-    if (vcount(G) < samn){
-    # exit if the population number is less than the sample size
-    return("Population size is not enough for snowball sampling")
-  }
-
-  ind = c()
-  V(G)$name = c(1:length(V(G)))
-  starter = sample(1:length(V(G)),1)
-  current = c()
-  current[1] = V(G)$name[starter]
-  count = 1
-  ind[1] = current[1]
-  while (count< samn){
-    nnode = length(current) # the number of subjects in the current stage
-    for (i in 1:nnode){
-      ngh = neighbors(G, current[i]) # vertex index
-      ind = c(ind, V(G)$name[ngh])
-      ind = unique(ind)
-    }
-    tmp_sample = ind[(count+1):length(ind)]
-
-    if (samn < length(ind)){ # if we reach more than the targeted sample size
-      need = samn - count # number of subjects needed
-      tmp_sample = sample(tmp_sample, need)
-      ind[(count+1):samn] = tmp_sample
-      ind = ind[-c((samn+1):length(ind))]
-    }
-    current = tmp_sample
-    count = length(ind)
-  }
-
-  if(count == samn){
-    subG = induced.subgraph(G, ind) # creates a subgraph of a graph, containing only the specified vertices and all the edges among them.
-    return(list(subG = subG, ind = ind))
-  }else{
-    return("somthing goes wrong.")
-  }
-}
-```
 
 ```{r}
 snowball.sampling = function(G, samn){
@@ -191,13 +177,15 @@ Class1=snowball.sampling(largest_component,180)
 ```
 
 ```{r}
-Class.1 <- Class1$subG
+#Class.1 <- Class1$subG
 ```
+
+The above three parts of the codes have been used to implement the snowball sample. At the end, we have not used it. It is not in line with our goal. In fact we could have lost nodes with high centrality, leading us to a wrong targeted vaccination campaign.
 
 Since, each workers may have multiple contacts with an other worker in the interval, we have an undirected weighted network. So, we assigned the weight to each edge in the graph
 
 ```{r}
-E(Class.1)$weight<-E(Class.1)$Freq
+E(Class.1)$weight<-E(Class.1)$Contacts
 Class.1 # Assigning edge attribute to each edge
 ```
 Our network is connected,weighted with diameter equal to 5. 
@@ -209,18 +197,45 @@ is_weighted(Class.1)
 diameter(Class.1)
 ```
 
-The graph is said to be connected if every vertex is reachable from every other
-vertex.
-The diamter of a network is the length of the longest shortest path between any two vertices in the graph. Given that there are 180 nodes, a diameter of 5 might imply that the network has a relatively well-connected structure,
+The graph is said to be connected if every vertex is reachable from every other vertex.
+The diameter of a network is the length of the longest shortest path between any two vertices in the graph. Given that there are 180 nodes, a diameter of 5 might imply that the network has a relatively well-connected structure,
 
-#degree distribution
+#DEGREE DISTRIBUTION
+
 The degree distribution of a graph describes the frequency or probability distribution of the degrees of vertices in the graph. The degree of a vertex is the number of edges incident to it. Since we have a weighted graph where the values represent the strength of connections between individuals, the degree distribution will consider these weighted connections. We can calculate the degree of a vertex by summing up the weights of all edges incident to that vertex.
 
-```{r}
+```{r,fig.width=8, fig.height=3,fig.align='center'}
 fd=degree_distribution(Class.1)
 d=seq_along(fd)
-plot(d-1,fd,type='h')
 ```
+
+```{r,fig.align='center',fig.height=3,fig.width=8}
+library(ggplot2)
+
+# Assuming d and fd are your data vectors
+df1 <- data.frame(degree = d - 1, frequence = fd)
+
+ggplot(df1, aes(x = degree, y = frequence)) +
+  geom_segment(aes(xend = degree, yend = 0), size = 1.2, color = "black") +  # 'size' controls line width
+  labs(x = "degree", y = "frequence", title = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 25,face='bold'),
+        axis.text.y = element_text(size = 25,face='bold'),
+        axis.title.x = element_text(size = 25,face='bold'),
+        axis.title.y = element_text(size = 25,face='bold'),
+        plot.title = element_text(size = 20, hjust = 0.5))  # Adjust the title size and centering
+
+```
+
+Coefficient of variation (CV) is the ratio: $CV=\frac{\sigma}{\mu}$ where $\sigma$ is the standard deviation of the node's degree while $\mu=\frac{2E}{N}$ where E is equal to the total number of edges in the network while N is equal to the total number of nodes. 
+The closer the CV is to zero, the more homogeneous the degree distribution is; conversely, the closer it is to one, the more heterogeneous the degree distribution is.
+
+```{r}
+CV=sd(degree(Class.1))/mean(degree(Class.1))
+CV
+```
+
+Coefficient of variation (CV) of the degree distribution is equal to 0.39 which means we have a moderate level of variability of the degree distribution in the graph
 
 #DENSITY OF THE GRAPH VS DENSITY OF THE SUBGRAPGHS FOR THE FOUR CLASSES
 
@@ -231,6 +246,7 @@ density_global=edge_density(Class.1) # Global density
 A1<-round(edge_density(induced_subgraph(Class.1, V(Class.1)[sector=="DCAR"], impl=c("auto"))),2)
 A2<-round(edge_density(induced_subgraph(Class.1, V(Class.1)[sector=="DG"], impl=c("auto"))),2)
 A3<-round(edge_density(induced_subgraph(Class.1, V(Class.1)[sector=="DISQ"], impl=c("auto"))),2)
+A12<-round(edge_density(induced_subgraph(Class.1, V(Class.1)[sector=="DMCT"], impl=c("auto"))),2)
 A4<-round(edge_density(induced_subgraph(Class.1, V(Class.1)[sector=="DMI"], impl=c("auto"))),2)
 A5<-round(edge_density(induced_subgraph(Class.1, V(Class.1)[sector=="DSE"], impl=c("auto"))),2)
 A6<-round(edge_density(induced_subgraph(Class.1, V(Class.1)[sector=="DST"], impl=c("auto"))),2)
@@ -241,60 +257,58 @@ A10<-round(edge_density(induced_subgraph(Class.1, V(Class.1)[sector=="SRH"], imp
 A11<-round(edge_density(induced_subgraph(Class.1, V(Class.1)[sector=="SSI"], impl=c("auto"))),2)
 ```
 
-```{r}
-# Load necessary libraries
-library(ggplot2)
-library(knitr)
-
-# Assuming density_global and other department densities (A1, A3, etc.) are predefined
-# Create a data frame with the density values for each department
+```{r,fig.width=8, fig.height=3,fig.align='center'}
 density_comparison <- data.frame(
-  Department = c("Global", "DCAR", "DISQ", "DMI", "DSE", "DST", "SCOM", "SDOC", "SFLE", "SRH", "SSI"),
-  Density = c(density_global, A1, A3, A4, A5, A6, A7, A8, A9, A10, A11)
+  Department = c("Global", "DCAR","DG","DISQ","DMCT","DMI", "DSE", "DST", "SCOM", "SDOC", "SFLE", "SRH", "SSI"),
+  Density = c(density_global, A1,A2, A3,A12, A4, A5, A6, A7, A8, A9, A10, A11)
 )
-
-# Generate the bar plot with a different color for the Global density
 ggplot(density_comparison, aes(x = Department, y = Density, fill = Department == "Global")) +
   geom_bar(stat = "identity") +
   scale_fill_manual(values = c("skyblue", "orange"), labels = c("Department", "Global")) +
   theme_minimal() +
-  labs(title = "Department Density Comparison",
-       x = "Department",
-       y = "Density",
+  labs(title = "",
+       x = "",
+       y = "",
        fill = "Type") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
+    theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 30,face="bold"),
+    axis.text.y = element_text(size = 12),
+    legend.title = element_text(size = 50),
+    legend.text = element_text(size = 40)
+  )
 ```
 
-
-The general connectivity is 0.18 indicating a global weak connection among the classes. However, analyzing the connection within each class, we may conclude that the connection within the classes  is higher that the global connection. Hence, we can say that within each class we have much more contact  compared to the global one.
+The general connectivity is 0.18 indicating a global weak connection among the classes. However, analyzing the connection within each class, we may conclude that the connection within the classes is higher that the global connection. Hence, we can say that within each class we have much more contact  compared to the global one.
 However, the overall connectivity is not zero and is worth almost 20%; this suggests that there is a connection between different departments and that a targeted vaccination campaign may be useful in preventing disease outbreaks.
 
 Before to implement the two centrality measures that are the object of the analysis, we have a look at the adjacency matrix.
 
-#adjacency matrix
+#ADJACENCY MATRIX
+
 ```{r}
 #adjacency matrix in an undirected weighted graph
 Class.1[c(1:10),c(1:10)]
 ```
-It is a symmetric matrix where on the rows and columns are reported the ID's of the person subjected to the analysis. In ech cell we have the connection between each vertex (ID). In an undirected graph with no weight on the edge we would have 1 if there is a connection among the adges while 0 if there is not a connection. However, in the analysis, the edges are weighted. Hence, if there is a connection among two ID's we have a value that represents the strength/contact number of the connectivity among the selected nodes. Moreover, the values on the diagonal are equal to zero since each edge is not linked to itself.
+
+It is a symmetric matrix where on the rows and columns are reported the ID's of the person subjected to the analysis. In each cell we have the connection between each vertex (ID). In an undirected graph with no weight on the edge we would have 1 if there is a connection among the edges while 0 if there is not a connection. However, in the analysis, the edges are weighted. Hence, if there is a connection among two ID's we have a value that represents the strength/contact number of the connectivity among the selected nodes. Moreover, the values on the diagonal are equal to zero since each edge is not linked to itself.
 
 #CENTRALITY: IMPORTANCE OF THE NODES
 
-#Eigenvector centrality
+##Eigenvector centrality
+
 It's based on the concept that a node is important if it is connected to other important nodes.
 Let $A = (a_{i,j})$ be the adjacency matrix of a graph. The eigenvector centrality $x_{i}$ of node $i$ is given by: $$x_i = \frac{1}{\lambda} \sum_k a_{k,i} \, x_k$$ where $\lambda \neq 0$ is usually the largest eigenvalue in absolute value of matrix $A$.. In matrix form we have: $$\lambda x = x A$$.
 By virtue of Perron-Frobenius theorem, this choice guarantees the following desirable property: if matrix $A$ is irreducible, or equivalently if the graph is (strongly) connected, then the eigenvector solution $x$ is both unique and positive.
 
 ```{r}
-class1_eig <- evcent(Class.1)$vector
+class1_eig <- evcent(Class.1)$vector/sum(evcent(Class.1)$vector)
 V(Class.1)$Eigen<-class1_eig
 head(V(Class.1)$Eigen)
 ```
 
-#BETWEENNESS CENTRALITY
-Betweenness centrality measures the extent to which a vertex lies on paths between other vertices. Vertices with high betweenness may have considerable influence within a network by virtue of their control over information passing between others. They are also the ones whose removal from the network will most disrupt communications between other vertices because they lie on the largest number of paths taken by messages.
-Mathematically, let $n_{s,t}^{i}$ be the number of paths from $s$ to $t$ that pass through $i$ and let $n_{s,t}$ be the total number of paths from $s$ to $t$.Then the betweenness centrality of vertex $i$ is:
+##Betweenness centrality
+The betweenness centrality of a vertex quantifies the number of times a vertex acts as a bridge along the shortest path between two other vertices Vertices with high betweenness may have considerable influence within a network by virtue of their control over information passing between others. They are also the ones whose removal from the network will most disrupt communications between other vertices because they lie on the largest number of paths taken by messages.
+Mathematically, let $n_{s,t}^{i}$ be the number of shortest paths from $s$ to $t$ that pass through $i$ and let $n_{s,t}$ be the total number of shortest paths from $s$ to $t$.Then the betweenness centrality of vertex $i$ is:
 
 $\displaystyle{b_i = \sum_{s, t} w_{s,t}^{i} = \sum_{s, t} \frac{n_{s,t}^{i}}{n_{s,t}}}$
 
@@ -311,50 +325,49 @@ head(V(Class.1)$betweenness)
 Nodes with the highest eigen and betweenness centrality are:
 
 ```{r}
-node_data <- data.frame(198,'DISQ', 197,'SFLE')
-kable(node_data, caption = "Node Connections", col.names = c("Node_eig",'DEP',"Node_BW",'DEP'), align = "c")
+node_data <- data.frame(366,'DISQ', 882,'DSE')
+kable(node_data, caption = "Node Connections", col.names = c("Method:eigen",'DEP',"Method:Betweenness",'DEP'), align = "c")
 ```
 
-#FRUCHTERMAN REINGOLD
+#LAYOUT:FRUCHTERMAN REINGOLD
+
 It is an example of a force-directed algorithm, which uses an analogy of physical springs as edges that attract connected vertices toward each other and a competing repulsive force that pushes all vertices away from one another, whether they are connected or not. It typically results in edges that are relatively similar in length, though the length of edges has no specific meaning in most network visualizations. The algorithm uses an iterative process to adjust the placement of the vertices in order to minimize the “energy” of the system. Because it is an iterative layout, it runs many times, each time incrementally changing the position of each vertex based on the prior position.
 
-```{r,fig.width=6, fig.height=6}
-set.seed(123)
-library(RColorBrewer)
+```{r,fig.width=6, fig.height=6,fig.align='center'}
+set.seed(234)
 pal<-brewer.pal(length(unique(V(Class.1)$sector)), "Set3")
 plot(Class.1, 
      edge.color = 'black',
      vertex.label.cex = 0.5,
      vertex.color = pal[as.numeric(as.factor(vertex_attr(Class.1, "sector")))],
-     vertex.size = sqrt(class1_eig) *20,
+     vertex.size = sqrt(class1_eig) *60,
      edge.width = sqrt(E(Class.1)$weight / 5000),  # Correzione qui
      layout = layout.fruchterman.reingold)
 #legend("topright", legend = levels(as.factor(vertex_attr(Class1[[1]], "MED"))),
        #fill = pal, title = "MED")
 legend("topright", legend = levels(as.factor(vertex_attr(Class.1, "sector"))),
-       fill = pal, title = "Department", cex=2, bty="n", x.intersp=0.8, y.intersp=1)
+       fill = pal, title = "Department", cex=1.9, bty="n", x.intersp=0.8, y.intersp=1)
 ```
 
-```{r, fig.width=6, fig.height=6}
-set.seed(123)
+```{r, fig.width=6, fig.height=6,fig.align='center'}
+set.seed(234)
 pal<-brewer.pal(length(unique(V(Class.1)$sector)), "Set3")
 plot(Class.1, 
      edge.color = 'black',
      vertex.label.cex = 0.5,
      vertex.color = pal[as.numeric(as.factor(vertex_attr(Class.1, "sector")))],
-     vertex.size = sqrt(class1_bw) * 0.4,
+     vertex.size = sqrt(class1_bw) * 0.2,
      edge.width = sqrt(E(Class.1)$weight / 2000),  
      layout = layout.fruchterman.reingold)
-#legend("topright", legend = levels(as.factor(vertex_attr(Class1[[1]], "MED"))),
-       #fill = pal, title = "MED")
 legend("topright", legend = levels(as.factor(vertex_attr(Class.1, "sector"))),
-       fill = pal, title = "Department", cex=2, bty="n", x.intersp=0.8, y.intersp=1)
+       fill = pal, title = "Department", cex=1.7, bty="n", x.intersp=0.8, y.intersp=1)
 ```
-In both graphs We have highlighted the nodes according to their centrality importance. In the first we used the eigenvector centrality while in the second we implemented the betweenness centrality. We may conclude that in both the cases the most central nodes are the ones related to the nurses category. Moreover, using eigenvector method the most central node is related to the person with ID equal to 1115 while in the other case ID more central is linked to the id equal to 1164
 
-#CORRELATION BETWEEN DEGREE VS BETWENNESS CENTRALITY AND DEGREE VS EIGEN CENTRALITY
+In the first plot we highlighted the nodes with high egen-centrality while in the second the ones with high betwenness centrality
 
-#Degree centrality
+CORRELATION BETWEEN DEGREE VS BETWENNESS CENTRALITY AND DEGREE VS EIGEN CENTRALITY
+
+Degree centrality
 
 We sum all the edges each vertex has. In our case, we sum the weight of all the edges linked to a vertex or node.
 Freeman (1978) asserted that the degree of focal node is the number of adjacencies in a network, i.e. the number of nodes that the focal node is connected to. This measure can be formalized
@@ -362,16 +375,15 @@ as:
 $$
 k_i=C_D(i)=\sum_j^N x_{ij}
 $$
-where $i$ is the focal node, $j$ represents all other nodes, $N$ is the total number of nodes, and $x$ is the adjacency matrix, in which the cell $x_{ij}$ is defined as 1 if node i is connected to node $j$, and 0 otherwise. However, in our case, we have an undirected and weigthed graph. Hence, the measure of the degree centrality is equal to:
+where $i$ is the focal node, $j$ represents all other nodes, $N$ is the total number of nodes, and $x$ is the adjacency matrix, in which the cell $x_{ij}$ is defined as 1 if node i is connected to node $j$, and 0 otherwise. However, in our case, we have an undirected and weighted graph. Hence, the measure of the degree centrality is equal to:
 
 $$
 k_i=C_D^W(i)=\sum_j^N W_{ij}
 $$
 
-Here, $W_{ij}$ is the weigthed adjacency matrix, in which $W_{IJ}$ is greater than 0 if the node $i$ is connected to node $j$, and the value represents the weight of the tie.
+Here, $W_{ij}$ is the weighted adjacency matrix, in which $W_{IJ}$ is greater than 0 if the node $i$ is connected to node $j$, and the value represents the weight of the tie.
 
 ```{r}
-#1. Degree centrality
 Class_deg<-degree(Class.1,mode=c("All"))
 V(Class.1)$degree<-Class_deg
 V(Class.1)$degree
@@ -379,7 +391,7 @@ which.max(Class_deg)
 ```
 
 
-```{r}
+```{r,fig.width=8, fig.height=3,fig.align='center'}
 degree_values <- V(Class.1)$degree
 betweenness_values <- V(Class.1)$betweenness
 eigenvector_values <- V(Class.1)$Eigen
@@ -399,9 +411,141 @@ plot(degree_values, eigenvector_values,
 legend(legend=paste("Cor:", round(cor_degree_eigenvector, 2)),
        col="red", pch=16, bty="n",x=10,y=1)
 ```
+
 Eigenvector centrality considers not only the number of connections of a node (like degree centrality), but also the importance of connected nodes. Consequently, a node with high degree centrality will often also have high eigenvector centrality, especially in graphs where important nodes tend to be connected to other important nodes. This leads to a significant positive correlation between these two measures. On the other hand, betweenness centrality is not directly related to a node's number of links, but rather to the node's strategic position in the graph. A node may have high degree centrality but low betweenness centrality if it is not located along many shorter paths between other nodes. Conversely, a node with low degree centrality might have high betweenness centrality if it is critical for connecting different parts of the graph.
 
-ccccc
+We decided to implement the eigen-centrality to target the departments for the vaccination campaign since this measure takes into account both the importance of a node and the influence of its neighbors.
+Here we plotted the distribution of the values of the eigenvectors highlighting the values in the upper 20%, meaning that the centrality value is higher than the 80% of the centrality values in the data. The goal is to underline the workers' id, alongside with their department where they belong to. Hence, we know who are the workers that we need to target for the vaccination campaign
+
+Below we plotted the distribution of the eigen-centrality values. The red vertical line is the 80% percentile.
+
+```{r,fig.width=8, fig.height=3,fig.align='center'}
+library(ggplot2)
+df=data.frame(class1_eig)
+quantile <- quantile(df$class1_eig,0.8)
+ggplot(df, aes(x = class1_eig)) +
+  geom_histogram(binwidth = 0.01, fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "",
+       x = "",
+       y = "",
+       fill = "Type") +
+  geom_vline(xintercept = quantile, color = "red", linetype = "dashed",size=2) +
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 25,face='bold'),
+        axis.text.y = element_text(size = 25,face='bold'),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16))
+
+```
+
+Below we plotted the sorted values of the eigen-centrality highlighting the ones with centrality value in the upper 20%.
+The original goal was to look for an elbow rule but it is not so clear from the pictures.
+
+```{r}
+par(mfrow=c(1,2))
+ggplot(data.frame(index = c(1:length(sort(class1_eig))), y = sort(class1_eig)) , aes(x= index, y = y)) +
+  geom_line() +          
+  geom_point() +
+    theme_minimal() +   
+  labs(title = "Eigen-centrality distribution",
+       x = "",
+       y = "") +   
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    text = element_text(size = 20)
+  )
+# Calcola la quantile dell'80% di class1_eig
+quantile_80 <- quantile(class1_eig, 0.80)
+
+# Crea il grafico
+ggplot(data.frame(index = c(1:length(sort(class1_eig))), y = sort(class1_eig)), aes(x = index, y = y)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "Distribuzione dell'Eigen-centrality",
+       x = "",
+       y = "") +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    text = element_text(size = 20)
+  ) +
+  geom_hline(yintercept = quantile_80, color = "red", linetype = "dashed", size = 1) +
+  annotate("text", x = max(1:length(sort(class1_eig))), y = quantile_80, 
+           label = paste("80% Quantile:", round(quantile_80, 2)), 
+           vjust = -1, hjust = 1, color = "red") +
+  
+  coord_cartesian(ylim = c(0, quantile_80 * 2))
+```
+
+Then, we highlighted the workers with eigen-centrality higher than the 80% of the values alongside with their department
+
+```{r}
+d=as.data.frame(sort(class1_eig[class1_eig>quantile],decreasing=TRUE))
+d$id <- rownames(d)
+names(d)=c('eig_centrality','id')
+data1=(data[data$id %in% d$id,])
+```
+
+```{r}
+datatable(data1, options = list(pageLength = 6))
+```
+
+
+Then, we re-plotted the graph highlighting the workers' ID whose connection value is in the upper 20% of the centrality distribution.
+
+
+```{r,fig.width=6, fig.height=6,fig.align='center'}
+set.seed(234)
+categories_of_interest <- c("DMCT", "DISQ","DSE","DST","DMI")
+pal <- brewer.pal(length(categories_of_interest), "Set3")
+colors <- rep("white", length(V(Class.1)))
+for (i in 1:length(categories_of_interest)) {
+  colors[vertex_attr(Class.1, "sector") == categories_of_interest[i]] <- pal[i]
+}
+plot(Class.1, 
+     edge.color = 'black',
+     vertex.label.cex = 0.5,
+     vertex.color = colors,
+     vertex.size = sqrt(as.numeric(class1_eig > quantile)) * 10,
+     edge.width = sqrt(E(Class.1)$weight / 5000),  
+     layout = layout.fruchterman.reingold)
+legend("bottomright", legend = categories_of_interest,
+       fill = pal, 
+       title = "Department", cex = 1.5, bty = "n", x.intersp = , y.intersp = 1)
+
+```
+
+Departments affected by the campaign.
+
+```{r}
+colname <- colnames(data1)[2]
+data_summary <- data1 %>%
+  count(!!sym(colname)) %>%
+  mutate(percentage = n / sum(n) * 100)
+
+data_summary <- data_summary %>%
+  mutate(category_label = paste(!!sym(colname), "(", round(percentage, 1), "%)", sep = ""),
+         ypos = cumsum(percentage) - 0.5 * percentage,
+         label_pos = 3)  # Aumenta label_pos per rendere le linee più lunghe
+
+# Calcolo del totale complessivo
+total_sum <- sum(data_summary$n)
+
+ggplot(data_summary, aes(x = 2, y = percentage, fill = category_label)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") +
+  xlim(0.5, 3.5) +  # Aumenta lo spazio per le linee
+  labs(fill = "Categories", x = NULL, y = NULL, title = "COMPANY DEPARTMENTS") +
+  theme_void() +
+  theme(legend.title = element_blank(), legend.position = "right",legend.text = element_text(size = 20)) +
+ 
+  #geom_text(aes(x = label_pos + 0.1, y = ypos, label = paste0(round(percentage, 1), "%")), 
+            #hjust = 0, color = "black") + # Aggiunge il testo con la percentuale fuori dalla ciambella
+  annotate("text", x = 0.6, y = 0, label = paste0("n: ", total_sum), size = 6, fontface = "bold") + # Aggiunge il totale complessivo al centro della ciambella
+  scale_fill_brewer(palette = "Set3") # Usa una palette di colori più diversificata
+
+
+```
 
 
 
