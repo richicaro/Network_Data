@@ -97,10 +97,9 @@ components <- clusters(Class)
 # Identify the biggest connection
 largest_component_id <- which.max(components$csize)
 largest_component_vertices <- which(components$membership == largest_component_id)
-
+largest_component=induced_subgraph(Class,largest_component_vertices)
 Class.1 <- induced_subgraph(Class, largest_component_vertices)
 
-is_connected(largest_component)
 ```
 
 An undirected graph $G=(V,E)$ is a set of vertices $V$ and a set of edges $E$ where each edge connects two vertices without any direction. The edges represent a bidirectional relationship between the vertices.
@@ -124,8 +123,8 @@ est_mc <- map_df(1:nmc, function (mc) {
 })
 ggplot(est_mc, aes(x = estimate, fill = method)) +
  geom_histogram(bins = 100) + geom_vline(xintercept = mean(degree(largest_component)))+
-  theme(legend.title = element_text(size = 50),  # Increase legend title size
-        legend.text = element_text(size = 40))
+  theme(legend.title = element_text(size = 20),  # Increase legend title size
+        legend.text = element_text(size = 10))
 ```
 
 Hence, we implemented the snowball.sampling() function to sample almost 85% of the nodes in our data.
@@ -219,11 +218,11 @@ ggplot(df1, aes(x = degree, y = frequence)) +
   geom_segment(aes(xend = degree, yend = 0), size = 1.2, color = "black") +  # 'size' controls line width
   labs(x = "degree", y = "frequence", title = "") +
   theme_minimal() +
-  theme(axis.text.x = element_text(size = 25,face='bold'),
-        axis.text.y = element_text(size = 25,face='bold'),
-        axis.title.x = element_text(size = 25,face='bold'),
-        axis.title.y = element_text(size = 25,face='bold'),
-        plot.title = element_text(size = 20, hjust = 0.5))  # Adjust the title size and centering
+  theme(axis.text.x = element_text(size = 10,face='bold'),
+        axis.text.y = element_text(size = 10,face='bold'),
+        axis.title.x = element_text(size = 10,face='bold'),
+        axis.title.y = element_text(size = 10,face='bold'),
+        plot.title = element_text(size = 10, hjust = 0.5))  # Adjust the title size and centering
 
 ```
 
@@ -271,10 +270,10 @@ ggplot(density_comparison, aes(x = Department, y = Density, fill = Department ==
        y = "",
        fill = "Type") +
     theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 30,face="bold"),
-    axis.text.y = element_text(size = 12),
-    legend.title = element_text(size = 50),
-    legend.text = element_text(size = 40)
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10,face="bold"),
+    axis.text.y = element_text(size = 10,face="bold"),
+    legend.title = element_text(size = 20),
+    legend.text = element_text(size = 10)
   )
 ```
 
@@ -346,7 +345,7 @@ plot(Class.1,
 #legend("topright", legend = levels(as.factor(vertex_attr(Class1[[1]], "MED"))),
        #fill = pal, title = "MED")
 legend("topright", legend = levels(as.factor(vertex_attr(Class.1, "sector"))),
-       fill = pal, title = "Department", cex=1.9, bty="n", x.intersp=0.8, y.intersp=1)
+       fill = pal, title = "Department", cex=.7, bty="n", x.intersp=0.8, y.intersp=1)
 ```
 
 ```{r, fig.width=6, fig.height=6,fig.align='center'}
@@ -360,7 +359,7 @@ plot(Class.1,
      edge.width = sqrt(E(Class.1)$weight / 2000),  
      layout = layout.fruchterman.reingold)
 legend("topright", legend = levels(as.factor(vertex_attr(Class.1, "sector"))),
-       fill = pal, title = "Department", cex=1.7, bty="n", x.intersp=0.8, y.intersp=1)
+       fill = pal, title = "Department", cex=.7, bty="n", x.intersp=0.8, y.intersp=1)
 ```
 
 In the first plot we highlighted the nodes with high egen-centrality while in the second the ones with high betwenness centrality
@@ -431,8 +430,8 @@ ggplot(df, aes(x = class1_eig)) +
        fill = "Type") +
   geom_vline(xintercept = quantile, color = "red", linetype = "dashed",size=2) +
   theme_minimal()+
-  theme(axis.text.x = element_text(size = 25,face='bold'),
-        axis.text.y = element_text(size = 25,face='bold'),
+  theme(axis.text.x = element_text(size = 10,face='bold'),
+        axis.text.y = element_text(size = 10,face='bold'),
         axis.title.x = element_text(size = 16),
         axis.title.y = element_text(size = 16))
 
@@ -452,7 +451,7 @@ ggplot(data.frame(index = c(1:length(sort(class1_eig))), y = sort(class1_eig)) ,
        y = "") +   
   theme(
     plot.title = element_text(hjust = 0.5),
-    text = element_text(size = 20)
+    text = element_text(size = 10)
   )
 # Calcola la quantile dell'80% di class1_eig
 quantile_80 <- quantile(class1_eig, 0.80)
@@ -467,7 +466,7 @@ ggplot(data.frame(index = c(1:length(sort(class1_eig))), y = sort(class1_eig)), 
        y = "") +
   theme(
     plot.title = element_text(hjust = 0.5),
-    text = element_text(size = 20)
+    text = element_text(size = 10)
   ) +
   geom_hline(yintercept = quantile_80, color = "red", linetype = "dashed", size = 1) +
   annotate("text", x = max(1:length(sort(class1_eig))), y = quantile_80, 
@@ -506,12 +505,12 @@ plot(Class.1,
      edge.color = 'black',
      vertex.label.cex = 0.5,
      vertex.color = colors,
-     vertex.size = sqrt(as.numeric(class1_eig > quantile)) * 10,
+     vertex.size = sqrt(as.numeric(class1_eig > quantile)) * 5,
      edge.width = sqrt(E(Class.1)$weight / 5000),  
      layout = layout.fruchterman.reingold)
 legend("bottomright", legend = categories_of_interest,
        fill = pal, 
-       title = "Department", cex = 1.5, bty = "n", x.intersp = , y.intersp = 1)
+       title = "Department", cex = 1.7, bty = "n", x.intersp = , y.intersp = 1)
 
 ```
 
@@ -546,6 +545,9 @@ ggplot(data_summary, aes(x = 2, y = percentage, fill = category_label)) +
 
 
 ```
+
+
+
 
 
 
