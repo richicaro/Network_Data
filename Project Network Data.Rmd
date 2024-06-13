@@ -1,6 +1,6 @@
 ---
 title: "Social Network"
-author: "Riccardo Carotenuto and Matteo Fusi"
+author: "Riccardo Carotenuto and Martino Fusi"
 date: "2024-05-30"
 output:
   html_document: default
