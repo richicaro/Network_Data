@@ -356,7 +356,7 @@ plot(Class.1,
      vertex.label.cex = 0.5,
      vertex.color = pal[as.numeric(as.factor(vertex_attr(Class.1, "sector")))],
      vertex.size = sqrt(class1_bw) * 0.2,
-     edge.width = sqrt(E(Class.1)$weight / 2000),  
+     edge.width = sqrt(E(Class.1)$weight / 5000),  
      layout = layout.fruchterman.reingold)
 legend("topright", legend = levels(as.factor(vertex_attr(Class.1, "sector"))),
        fill = pal, title = "Department", cex=.7, bty="n", x.intersp=0.8, y.intersp=1)
@@ -508,9 +508,9 @@ plot(Class.1,
      vertex.size = sqrt(as.numeric(class1_eig > quantile)) * 5,
      edge.width = sqrt(E(Class.1)$weight / 5000),  
      layout = layout.fruchterman.reingold)
-legend("bottomright", legend = categories_of_interest,
+legend("topright", legend = categories_of_interest,
        fill = pal, 
-       title = "Department", cex = 1.7, bty = "n", x.intersp = , y.intersp = 1)
+       title = "Department", cex = .7, bty = "n", x.intersp = , y.intersp = 1)
 
 ```
 
